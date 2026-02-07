@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+sign_env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+
+# Data (raw datasets may be large)
+data/raw_landmarks/
+
+# Model files
+models/*.h5
+models/*.tflite
