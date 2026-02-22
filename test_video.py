@@ -59,7 +59,7 @@ sequence = np.array(sequence)
 print("Original shape:", sequence.shape)
 # ---- FIXED LENGTH = 30 ----
 TARGET_FRAMES = 30
-
+        
 num_frames = sequence.shape[0]
 
 if num_frames >= TARGET_FRAMES:
