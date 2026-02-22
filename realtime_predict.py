@@ -1,0 +1,94 @@
+import cv2
+import numpy as np
+import mediapipe as mp
+from tensorflow.keras.models import load_model
+
+# -------- LOAD MODEL --------
+model = load_model("models/sign_model.h5")
+
+# Label mapping (must match training)
+labels = {
+    0: "HELLO",
+    1: "THANKYOU"
+}
+
+# -------- MEDIAPIPE SETUP --------
+mp_holistic = mp.solutions.holistic
+mp_drawing = mp.solutions.drawing_utils
+
+holistic = mp_holistic.Holistic(
+    static_image_mode=False,
+    model_complexity=1,
+    min_detection_confidence=0.3,
+    min_tracking_confidence=0.3
+)
+
+# -------- WEBCAM --------
+cap = cv2.VideoCapture(0)
+
+sequence = []
+TARGET_FRAMES = 30
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame = cv2.resize(frame, (640, 480))
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = holistic.process(rgb)
+
+    frame_landmarks = []
+
+    # ---- LEFT HAND ----
+    if results.left_hand_landmarks:
+        for lm in results.left_hand_landmarks.landmark:
+            frame_landmarks.extend([lm.x, lm.y])
+    else:
+        frame_landmarks.extend([0]*42)
+
+    # ---- RIGHT HAND ----
+    if results.right_hand_landmarks:
+        for lm in results.right_hand_landmarks.landmark:
+            frame_landmarks.extend([lm.x, lm.y])
+    else:
+        frame_landmarks.extend([0]*42)
+
+    # ---- POSE ----
+    pose_indices = [0, 11, 12, 13, 14]
+    if results.pose_landmarks:
+        for idx in pose_indices:
+            lm = results.pose_landmarks.landmark[idx]
+            frame_landmarks.extend([lm.x, lm.y])
+    else:
+        frame_landmarks.extend([0]*10)
+
+    sequence.append(frame_landmarks)
+
+    # Keep only last 30 frames
+    if len(sequence) > TARGET_FRAMES:
+        sequence = sequence[-TARGET_FRAMES:]
+
+    # When we have 30 frames → predict
+    if len(sequence) == TARGET_FRAMES:
+        input_data = np.expand_dims(sequence, axis=0)
+        prediction = model.predict(input_data, verbose=0)
+        predicted_class = np.argmax(prediction)
+        confidence = np.max(prediction)
+
+        text = f"{labels[predicted_class]} ({confidence:.2f})"
+
+        cv2.putText(frame, text,
+                    (20, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),
+                    2)
+
+    cv2.imshow("Sign Recognition", frame)
+
+    if cv2.waitKey(1) & 0xFF == 27:  # ESC to exit
+        break
+
+cap.release()
+cv2.destroyAllWindows()
