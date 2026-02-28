@@ -3,19 +3,22 @@ import os
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
+from tensorflow.keras.callbacks import EarlyStopping
 
-# -------- LOAD DATA --------
+# -------- SETTINGS --------
 DATA_PATH = "data"
+TARGET_FRAMES = 45
+FEATURES = 94
 
-X = []
-y = []
-
-# Label mapping
 labels = {
     "hello": 0,
     "thankyou": 1
 }
+
+# -------- LOAD DATA --------
+X = []
+y = []
 
 for label_name, label_index in labels.items():
     folder_path = os.path.join(DATA_PATH, label_name)
@@ -23,14 +26,22 @@ for label_name, label_index in labels.items():
     for file in os.listdir(folder_path):
         if file.endswith(".npy"):
             sequence = np.load(os.path.join(folder_path, file))
-            X.append(sequence)
-            y.append(label_index)
+
+            # Safety check
+            if sequence.shape == (TARGET_FRAMES, FEATURES):
+                X.append(sequence)
+                y.append(label_index)
+            else:
+                print(f"Skipped {file} due to wrong shape {sequence.shape}")
 
 X = np.array(X)
 y = to_categorical(y)
 
 print("X shape:", X.shape)
 print("y shape:", y.shape)
+
+if len(X) == 0:
+    raise ValueError("No valid data found. Check dataset.")
 
 # -------- TRAIN TEST SPLIT --------
 X_train, X_test, y_train, y_test = train_test_split(
@@ -40,16 +51,18 @@ X_train, X_test, y_train, y_test = train_test_split(
 print("Training samples:", X_train.shape[0])
 print("Testing samples:", X_test.shape[0])
 
-# -------- BUILD LSTM MODEL --------
+# -------- BUILD MODEL (SMALLER = STABLE) --------
 model = Sequential()
 
-model.add(LSTM(64, return_sequences=True, input_shape=(30, 94)))
-model.add(Dropout(0.2))
+model.add(Input(shape=(TARGET_FRAMES, FEATURES)))
 
-model.add(LSTM(32))
-model.add(Dropout(0.2))
+model.add(LSTM(32, return_sequences=True))
+model.add(Dropout(0.3))
 
-model.add(Dense(32, activation='relu'))
+model.add(LSTM(16))
+model.add(Dropout(0.3))
+
+model.add(Dense(16, activation='relu'))
 model.add(Dense(2, activation='softmax'))
 
 model.compile(
@@ -60,19 +73,28 @@ model.compile(
 
 model.summary()
 
-# -------- TRAIN MODEL --------
+# -------- EARLY STOPPING --------
+early_stop = EarlyStopping(
+    monitor='val_loss',
+    patience=5,
+    restore_best_weights=True
+)
+
+# -------- TRAIN --------
 history = model.fit(
     X_train,
     y_train,
-    epochs=30,
+    epochs=100,
     batch_size=2,
-    validation_data=(X_test, y_test)
+    validation_data=(X_test, y_test),
+    callbacks=[early_stop]
 )
 
-# -------- EVALUATE MODEL --------
+# -------- EVALUATE --------
 loss, accuracy = model.evaluate(X_test, y_test)
 print("Final Test Accuracy:", accuracy)
 
 # -------- SAVE MODEL --------
-model.save("models/sign_model.h5")
+os.makedirs("models", exist_ok=True)
+model.save("models/sign_model.keras")  # modern format
 print("Model saved successfully!")
