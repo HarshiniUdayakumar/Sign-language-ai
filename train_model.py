@@ -18,7 +18,7 @@ labels = {
 
 # -------- LOAD DATA --------
 X = []
-y = []
+y_raw = []
 
 for label_name, label_index in labels.items():
     folder_path = os.path.join(DATA_PATH, label_name)
@@ -27,15 +27,15 @@ for label_name, label_index in labels.items():
         if file.endswith(".npy"):
             sequence = np.load(os.path.join(folder_path, file))
 
-            # Safety check
             if sequence.shape == (TARGET_FRAMES, FEATURES):
                 X.append(sequence)
-                y.append(label_index)
+                y_raw.append(label_index)
             else:
                 print(f"Skipped {file} due to wrong shape {sequence.shape}")
 
 X = np.array(X)
-y = to_categorical(y)
+y_raw = np.array(y_raw)
+y = to_categorical(y_raw)
 
 print("X shape:", X.shape)
 print("y shape:", y.shape)
@@ -45,25 +45,29 @@ if len(X) == 0:
 
 # -------- TRAIN TEST SPLIT --------
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X,
+    y,
+    test_size=0.25,
+    random_state=42,
+    stratify=y_raw
 )
 
 print("Training samples:", X_train.shape[0])
 print("Testing samples:", X_test.shape[0])
 
-# -------- BUILD MODEL (SMALLER = STABLE) --------
+# -------- BUILD MODEL --------
 model = Sequential()
 
 model.add(Input(shape=(TARGET_FRAMES, FEATURES)))
 
-model.add(LSTM(32, return_sequences=True))
-model.add(Dropout(0.3))
+model.add(LSTM(64, return_sequences=True))
+model.add(Dropout(0.4))
 
-model.add(LSTM(16))
-model.add(Dropout(0.3))
+model.add(LSTM(32))
+model.add(Dropout(0.4))
 
-model.add(Dense(16, activation='relu'))
-model.add(Dense(2, activation='softmax'))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(len(labels), activation='softmax'))
 
 model.compile(
     optimizer='adam',
@@ -76,7 +80,7 @@ model.summary()
 # -------- EARLY STOPPING --------
 early_stop = EarlyStopping(
     monitor='val_loss',
-    patience=5,
+    patience=7,
     restore_best_weights=True
 )
 
@@ -85,7 +89,7 @@ history = model.fit(
     X_train,
     y_train,
     epochs=100,
-    batch_size=2,
+    batch_size=4,
     validation_data=(X_test, y_test),
     callbacks=[early_stop]
 )
@@ -96,5 +100,6 @@ print("Final Test Accuracy:", accuracy)
 
 # -------- SAVE MODEL --------
 os.makedirs("models", exist_ok=True)
-model.save("models/sign_model.keras")  # modern format
+model.save("models/sign_model.keras")
+
 print("Model saved successfully!")

@@ -16,7 +16,7 @@ TARGET_FRAMES = 45
 CONFIDENCE_THRESHOLD = 0.85
 SMOOTHING_WINDOW = 5
 
-# -------- MEDIAPIPE --------
+# -------- MEDIAPIPE SETUP --------
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
@@ -42,7 +42,7 @@ while cap.isOpened():
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = holistic.process(rgb)
 
-    # Draw landmarks (visual feedback)
+    # -------- DRAW LANDMARKS --------
     if results.left_hand_landmarks:
         mp_drawing.draw_landmarks(frame, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
     if results.right_hand_landmarks:
@@ -50,58 +50,73 @@ while cap.isOpened():
 
     frame_landmarks = []
 
-    # LEFT HAND
+    # -------- LEFT HAND --------
     if results.left_hand_landmarks:
         for lm in results.left_hand_landmarks.landmark:
             frame_landmarks.extend([lm.x, lm.y])
     else:
-        frame_landmarks.extend([0]*42)
+        frame_landmarks.extend([0] * 42)
 
-    # RIGHT HAND
+    # -------- RIGHT HAND --------
     if results.right_hand_landmarks:
         for lm in results.right_hand_landmarks.landmark:
             frame_landmarks.extend([lm.x, lm.y])
     else:
-        frame_landmarks.extend([0]*42)
+        frame_landmarks.extend([0] * 42)
 
-    # POSE
+    # -------- POSE --------
     pose_indices = [0, 11, 12, 13, 14]
     if results.pose_landmarks:
         for idx in pose_indices:
             lm = results.pose_landmarks.landmark[idx]
             frame_landmarks.extend([lm.x, lm.y])
     else:
-        frame_landmarks.extend([0]*10)
+        frame_landmarks.extend([0] * 10)
 
     sequence.append(frame_landmarks)
 
-    # Keep last 45 frames
+    # Keep only last 45 frames
     if len(sequence) > TARGET_FRAMES:
         sequence = sequence[-TARGET_FRAMES:]
 
+    # -------- PREDICTION --------
     if len(sequence) == TARGET_FRAMES:
-        input_data = np.expand_dims(sequence, axis=0)
-        prediction = model.predict(input_data, verbose=0)
 
-        predicted_class = np.argmax(prediction)
-        confidence = np.max(prediction)
+        # If NO hands detected → reset
+        if not results.left_hand_landmarks and not results.right_hand_landmarks:
+            stable_prediction = ""
+            prediction_history.clear()
 
-        if confidence > CONFIDENCE_THRESHOLD:
-            prediction_history.append(predicted_class)
+        else:
+            input_data = np.expand_dims(sequence, axis=0)
+            prediction = model.predict(input_data, verbose=0)
 
-            if len(prediction_history) == SMOOTHING_WINDOW:
-                most_common = Counter(prediction_history).most_common(1)[0][0]
-                stable_prediction = labels[most_common]
+            predicted_class = np.argmax(prediction)
+            confidence = np.max(prediction)
 
-    # Display stable result only
+            if confidence > CONFIDENCE_THRESHOLD:
+                prediction_history.append(predicted_class)
+
+                if len(prediction_history) == SMOOTHING_WINDOW:
+                    most_common = Counter(prediction_history).most_common(1)[0][0]
+                    stable_prediction = labels[most_common]
+            else:
+                stable_prediction = ""
+                prediction_history.clear()
+
+    # -------- DISPLAY --------
     if stable_prediction != "":
-        cv2.putText(frame,
-                    stable_prediction,
-                    (20, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.2,
-                    (0, 255, 0),
-                    3)
+        display_text = stable_prediction
+    else:
+        display_text = "NO ACTION"
+
+    cv2.putText(frame,
+                display_text,
+                (20, 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.2,
+                (0, 255, 0),
+                3)
 
     cv2.imshow("Sign Recognition", frame)
 
