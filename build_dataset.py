@@ -13,7 +13,7 @@ holistic = mp_holistic.Holistic(
     min_tracking_confidence=0.3
 )
 
-TARGET_FRAMES = 30
+TARGET_FRAMES = 45
 
 
 # -------- FUNCTION TO EXTRACT SEQUENCE --------
@@ -47,7 +47,8 @@ def extract_sequence(video_path):
             frame_landmarks.extend([0] * 42)
 
         # ---- SELECTED POSE LANDMARKS ----
-        pose_indices = [0, 11, 12, 13, 14]  # nose, shoulders, elbows
+        pose_indices = [0, 11, 12, 13, 14]
+
         if results.pose_landmarks:
             for idx in pose_indices:
                 lm = results.pose_landmarks.landmark[idx]
@@ -61,7 +62,7 @@ def extract_sequence(video_path):
 
     sequence = np.array(sequence)
 
-    # ---- FIX TO 30 FRAMES ----
+    # ---- FIX TO TARGET_FRAMES ----
     num_frames = sequence.shape[0]
 
     if num_frames >= TARGET_FRAMES:
@@ -84,6 +85,7 @@ hello_index = 0
 for file in os.listdir(HELLO_FOLDER):
     if file.startswith("hello") and file.endswith(".mov"):
         video_path = os.path.join(HELLO_FOLDER, file)
+
         print(f"Processing HELLO {file}...")
 
         seq = extract_sequence(video_path)
@@ -92,6 +94,7 @@ for file in os.listdir(HELLO_FOLDER):
         np.save(save_path, seq)
 
         print("Saved:", save_path)
+
         hello_index += 1
 
 
@@ -105,14 +108,40 @@ thank_index = 0
 for file in os.listdir(THANK_FOLDER):
     if file.endswith(".mov"):
         video_path = os.path.join(THANK_FOLDER, file)
+
         print(f"Processing THANKYOU {file}...")
 
         seq = extract_sequence(video_path)
 
-        save_path = os.path.join(THANK_OUTPUT, f"thank_{thank_index}.npy")
+        save_path = os.path.join(THANK_OUTPUT, f"thankyou_{thank_index}.npy")
         np.save(save_path, seq)
 
         print("Saved:", save_path)
+
         thank_index += 1
+
+
+# -------- PROCESS YES --------
+YES_FOLDER = "ASLLVD/yes"
+YES_OUTPUT = "data/yes"
+os.makedirs(YES_OUTPUT, exist_ok=True)
+
+yes_index = 0
+
+for file in os.listdir(YES_FOLDER):
+    if file.endswith(".mov"):
+        video_path = os.path.join(YES_FOLDER, file)
+
+        print(f"Processing YES {file}...")
+
+        seq = extract_sequence(video_path)
+
+        save_path = os.path.join(YES_OUTPUT, f"yes_{yes_index}.npy")
+        np.save(save_path, seq)
+
+        print("Saved:", save_path)
+
+        yes_index += 1
+
 
 print("Dataset build complete.")
