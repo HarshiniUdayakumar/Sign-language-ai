@@ -1,9 +1,10 @@
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping
 
 # -------- SETTINGS --------
@@ -35,6 +36,8 @@ for label_name, label_index in labels.items():
 
 X = np.array(X)
 y_raw = np.array(y_raw)
+
+# Convert labels to categorical
 y = to_categorical(y_raw)
 
 print("X shape:", X.shape)
@@ -42,6 +45,11 @@ print("y shape:", y.shape)
 
 if len(X) == 0:
     raise ValueError("No valid data found. Check dataset.")
+
+# -------- NORMALIZE DATA --------
+X_mean = np.mean(X)
+X_std = np.std(X) + 1e-8
+X = (X - X_mean) / X_std
 
 # -------- TRAIN TEST SPLIT --------
 X_train, X_test, y_train, y_test = train_test_split(
@@ -55,15 +63,27 @@ X_train, X_test, y_train, y_test = train_test_split(
 print("Training samples:", X_train.shape[0])
 print("Testing samples:", X_test.shape[0])
 
+# -------- CLASS WEIGHTS --------
+class_weights = compute_class_weight(
+    class_weight="balanced",
+    classes=np.unique(y_raw),
+    y=y_raw
+)
+
+class_weights = dict(enumerate(class_weights))
+print("Class weights:", class_weights)
+
 # -------- BUILD MODEL --------
 model = Sequential()
 
 model.add(Input(shape=(TARGET_FRAMES, FEATURES)))
 
 model.add(LSTM(64, return_sequences=True))
+model.add(BatchNormalization())
 model.add(Dropout(0.4))
 
 model.add(LSTM(32))
+model.add(BatchNormalization())
 model.add(Dropout(0.4))
 
 model.add(Dense(32, activation='relu'))
@@ -91,7 +111,8 @@ history = model.fit(
     epochs=100,
     batch_size=4,
     validation_data=(X_test, y_test),
-    callbacks=[early_stop]
+    callbacks=[early_stop],
+    class_weight=class_weights
 )
 
 # -------- EVALUATE --------
