@@ -1,10 +1,9 @@
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
-from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input, BatchNormalization
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
 from tensorflow.keras.callbacks import EarlyStopping
 
 # -------- SETTINGS --------
@@ -19,7 +18,7 @@ labels = {
 
 # -------- LOAD DATA --------
 X = []
-y_raw = []
+y = []
 
 for label_name, label_index in labels.items():
     folder_path = os.path.join(DATA_PATH, label_name)
@@ -28,17 +27,15 @@ for label_name, label_index in labels.items():
         if file.endswith(".npy"):
             sequence = np.load(os.path.join(folder_path, file))
 
+            # Safety check
             if sequence.shape == (TARGET_FRAMES, FEATURES):
                 X.append(sequence)
-                y_raw.append(label_index)
+                y.append(label_index)
             else:
                 print(f"Skipped {file} due to wrong shape {sequence.shape}")
 
 X = np.array(X)
-y_raw = np.array(y_raw)
-
-# Convert labels to categorical
-y = to_categorical(y_raw)
+y = to_categorical(y)
 
 print("X shape:", X.shape)
 print("y shape:", y.shape)
@@ -46,48 +43,34 @@ print("y shape:", y.shape)
 if len(X) == 0:
     raise ValueError("No valid data found. Check dataset.")
 
-# -------- NORMALIZE DATA --------
-X_mean = np.mean(X)
-X_std = np.std(X) + 1e-8
-X = (X - X_mean) / X_std
-
-# -------- TRAIN TEST SPLIT --------
+# -------- TRAIN TEST SPLIT (Stratified) --------
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
     test_size=0.25,
     random_state=42,
-    stratify=y_raw
+    stratify=y
 )
 
 print("Training samples:", X_train.shape[0])
 print("Testing samples:", X_test.shape[0])
-
-# -------- CLASS WEIGHTS --------
-class_weights = compute_class_weight(
-    class_weight="balanced",
-    classes=np.unique(y_raw),
-    y=y_raw
-)
-
-class_weights = dict(enumerate(class_weights))
-print("Class weights:", class_weights)
 
 # -------- BUILD MODEL --------
 model = Sequential()
 
 model.add(Input(shape=(TARGET_FRAMES, FEATURES)))
 
+# First LSTM
 model.add(LSTM(64, return_sequences=True))
-model.add(BatchNormalization())
 model.add(Dropout(0.4))
 
+# Second LSTM
 model.add(LSTM(32))
-model.add(BatchNormalization())
 model.add(Dropout(0.4))
 
+# Dense layers
 model.add(Dense(32, activation='relu'))
-model.add(Dense(len(labels), activation='softmax'))
+model.add(Dense(2, activation='softmax'))
 
 model.compile(
     optimizer='adam',
@@ -111,8 +94,7 @@ history = model.fit(
     epochs=100,
     batch_size=4,
     validation_data=(X_test, y_test),
-    callbacks=[early_stop],
-    class_weight=class_weights
+    callbacks=[early_stop]
 )
 
 # -------- EVALUATE --------

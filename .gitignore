@@ -6,7 +6,7 @@ __pycache__/
 # Virtual environment
 venv/
 sign_env/
-
+sign_language/
 # OS files
 .DS_Store
 Thumbs.db
