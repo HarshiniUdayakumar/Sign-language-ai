@@ -5,20 +5,20 @@ from tensorflow.keras.models import load_model
 from collections import deque, Counter
 
 # -------- LOAD MODEL --------
-model = load_model("models/sign_model.keras")
+model = load_model("models/sign_model_3gesture.keras")
 
 labels = {
     0: "HELLO",
-    1: "THANKYOU"
+    1: "THANKYOU",
+    2: "YES"
 }
 
 TARGET_FRAMES = 45
 CONFIDENCE_THRESHOLD = 0.85
 SMOOTHING_WINDOW = 5
 
-# -------- NORMALIZATION VALUES --------
-# These must match training distribution roughly
-# Since we used global normalization, we recompute per sequence
+
+# -------- NORMALIZATION --------
 def normalize_sequence(seq):
     seq = np.array(seq)
     mean = np.mean(seq)
@@ -42,6 +42,7 @@ cap = cv2.VideoCapture(0)
 sequence = []
 prediction_history = deque(maxlen=SMOOTHING_WINDOW)
 stable_prediction = ""
+
 
 while cap.isOpened():
 
@@ -96,12 +97,12 @@ while cap.isOpened():
     if len(sequence) == TARGET_FRAMES:
 
         if not results.left_hand_landmarks and not results.right_hand_landmarks:
+
             stable_prediction = ""
             prediction_history.clear()
 
         else:
 
-            # NORMALIZE sequence
             normalized_seq = normalize_sequence(sequence)
 
             input_data = np.expand_dims(normalized_seq, axis=0)
@@ -116,10 +117,12 @@ while cap.isOpened():
                 prediction_history.append(predicted_class)
 
                 if len(prediction_history) == SMOOTHING_WINDOW:
+
                     most_common = Counter(prediction_history).most_common(1)[0][0]
                     stable_prediction = labels[most_common]
 
             else:
+
                 stable_prediction = ""
                 prediction_history.clear()
 

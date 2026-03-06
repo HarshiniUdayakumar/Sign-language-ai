@@ -13,29 +13,36 @@ FEATURES = 94
 
 labels = {
     "hello": 0,
-    "thankyou": 1
+    "thankyou": 1,
+    "yes": 2
 }
 
 # -------- LOAD DATA --------
 X = []
-y = []
+y_raw = []
 
 for label_name, label_index in labels.items():
+
     folder_path = os.path.join(DATA_PATH, label_name)
 
     for file in os.listdir(folder_path):
+
         if file.endswith(".npy"):
+
             sequence = np.load(os.path.join(folder_path, file))
 
-            # Safety check
             if sequence.shape == (TARGET_FRAMES, FEATURES):
+
                 X.append(sequence)
-                y.append(label_index)
+                y_raw.append(label_index)
+
             else:
                 print(f"Skipped {file} due to wrong shape {sequence.shape}")
 
 X = np.array(X)
-y = to_categorical(y)
+y_raw = np.array(y_raw)
+
+y = to_categorical(y_raw)
 
 print("X shape:", X.shape)
 print("y shape:", y.shape)
@@ -43,13 +50,13 @@ print("y shape:", y.shape)
 if len(X) == 0:
     raise ValueError("No valid data found. Check dataset.")
 
-# -------- TRAIN TEST SPLIT (Stratified) --------
+# -------- TRAIN TEST SPLIT --------
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
     test_size=0.25,
     random_state=42,
-    stratify=y
+    stratify=y_raw
 )
 
 print("Training samples:", X_train.shape[0])
@@ -70,7 +77,7 @@ model.add(Dropout(0.4))
 
 # Dense layers
 model.add(Dense(32, activation='relu'))
-model.add(Dense(2, activation='softmax'))
+model.add(Dense(len(labels), activation='softmax'))
 
 model.compile(
     optimizer='adam',
@@ -99,10 +106,12 @@ history = model.fit(
 
 # -------- EVALUATE --------
 loss, accuracy = model.evaluate(X_test, y_test)
+
 print("Final Test Accuracy:", accuracy)
 
 # -------- SAVE MODEL --------
 os.makedirs("models", exist_ok=True)
-model.save("models/sign_model.keras")
+
+model.save("models/sign_model_3gesture.keras")
 
 print("Model saved successfully!")
