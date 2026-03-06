@@ -20,3 +20,4 @@ data/raw_landmarks/
 # Model files
 models/*.h5
 models/*.tflite
+models/*.keras
