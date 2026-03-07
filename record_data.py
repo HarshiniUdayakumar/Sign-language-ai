@@ -10,7 +10,8 @@ TARGET_FRAMES = 45
 ACTIONS = {
     ord('h'): "hello",
     ord('t'): "thankyou",
-    ord('y'): "yes"
+    ord('y'): "yes",
+    ord('b'): "beautiful"
 }
 
 # -------- MEDIAPIPE --------
@@ -27,14 +28,28 @@ holistic = mp_holistic.Holistic(
 for action in ACTIONS.values():
     os.makedirs(os.path.join(DATA_PATH, action), exist_ok=True)
 
-# -------- COUNT EXISTING FILES --------
+
+# -------- SAFE INDEX FUNCTION --------
 def get_next_index(action):
 
     folder = os.path.join(DATA_PATH, action)
 
-    existing = [f for f in os.listdir(folder) if f.endswith(".npy")]
+    files = [f for f in os.listdir(folder) if f.endswith(".npy")]
 
-    return len(existing)
+    if len(files) == 0:
+        return 0
+
+    indices = []
+
+    for f in files:
+        try:
+            index = int(f.split("_")[1].split(".")[0])
+            indices.append(index)
+        except:
+            pass
+
+    return max(indices) + 1
+
 
 # -------- EXTRACT LANDMARKS --------
 def extract_landmarks(results):
@@ -74,7 +89,9 @@ cap = cv2.VideoCapture(0)
 print("Press 'h' for HELLO")
 print("Press 't' for THANKYOU")
 print("Press 'y' for YES")
+print("Press 'b' for BEAUTIFUL")
 print("Press 'q' to quit")
+
 
 while True:
 
@@ -90,7 +107,7 @@ while True:
     results = holistic.process(rgb)
 
     cv2.putText(frame,
-                "Press h / t / y to record",
+                "Press h / t / y / b to record",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
@@ -104,6 +121,7 @@ while True:
     if key == ord('q'):
         break
 
+    # -------- RECORD ACTION --------
     if key in ACTIONS:
 
         action = ACTIONS[key]
@@ -143,6 +161,7 @@ while True:
 
         sequence = np.array(sequence)
 
+        # -------- SAFE SAVE --------
         index = get_next_index(action)
 
         save_path = os.path.join(DATA_PATH, action, f"{action}_{index}.npy")
@@ -151,6 +170,6 @@ while True:
 
         print(f"Saved: {save_path}")
 
-cap.release()
 
+cap.release()
 cv2.destroyAllWindows()

@@ -3,7 +3,7 @@ import mediapipe as mp
 import numpy as np
 import os
 
-# -------- MEDIAPIPE SETUP --------
+# -------- MEDIAPIPE --------
 mp_holistic = mp.solutions.holistic
 
 holistic = mp_holistic.Holistic(
@@ -16,45 +16,71 @@ holistic = mp_holistic.Holistic(
 TARGET_FRAMES = 45
 
 
-# -------- FUNCTION TO EXTRACT SEQUENCE --------
+# -------- GET NEXT SAFE INDEX --------
+def get_next_index(folder, prefix):
+
+    files = [f for f in os.listdir(folder) if f.endswith(".npy")]
+
+    if len(files) == 0:
+        return 0
+
+    indices = []
+
+    for f in files:
+        try:
+            index = int(f.split("_")[1].split(".")[0])
+            indices.append(index)
+        except:
+            pass
+
+    return max(indices) + 1
+
+
+# -------- EXTRACT LANDMARK SEQUENCE --------
 def extract_sequence(video_path):
+
     cap = cv2.VideoCapture(video_path)
+
     sequence = []
 
     while True:
+
         ret, frame = cap.read()
+
         if not ret:
             break
 
-        frame = cv2.resize(frame, (640, 480))
+        frame = cv2.resize(frame, (640,480))
+
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
         results = holistic.process(rgb)
 
         frame_landmarks = []
 
-        # ---- LEFT HAND ----
+        # LEFT HAND
         if results.left_hand_landmarks:
             for lm in results.left_hand_landmarks.landmark:
                 frame_landmarks.extend([lm.x, lm.y])
         else:
-            frame_landmarks.extend([0] * 42)
+            frame_landmarks.extend([0]*42)
 
-        # ---- RIGHT HAND ----
+        # RIGHT HAND
         if results.right_hand_landmarks:
             for lm in results.right_hand_landmarks.landmark:
                 frame_landmarks.extend([lm.x, lm.y])
         else:
-            frame_landmarks.extend([0] * 42)
+            frame_landmarks.extend([0]*42)
 
-        # ---- SELECTED POSE LANDMARKS ----
-        pose_indices = [0, 11, 12, 13, 14]
+        # POSE
+        pose_indices = [0,11,12,13,14]
 
         if results.pose_landmarks:
             for idx in pose_indices:
                 lm = results.pose_landmarks.landmark[idx]
                 frame_landmarks.extend([lm.x, lm.y])
         else:
-            frame_landmarks.extend([0] * 10)
+            frame_landmarks.extend([0]*10)
 
         sequence.append(frame_landmarks)
 
@@ -62,35 +88,47 @@ def extract_sequence(video_path):
 
     sequence = np.array(sequence)
 
-    # ---- FIX TO TARGET_FRAMES ----
     num_frames = sequence.shape[0]
 
+    # FIX FRAME SIZE
     if num_frames >= TARGET_FRAMES:
-        indices = np.linspace(0, num_frames - 1, TARGET_FRAMES).astype(int)
+
+        indices = np.linspace(0, num_frames-1, TARGET_FRAMES).astype(int)
+
         sequence = sequence[indices]
+
     else:
-        padding = np.zeros((TARGET_FRAMES - num_frames, sequence.shape[1]))
+
+        padding = np.zeros((TARGET_FRAMES-num_frames, sequence.shape[1]))
+
         sequence = np.vstack((sequence, padding))
 
     return sequence
 
 
-# -------- PROCESS HELLO --------
-HELLO_FOLDER = "ASLLVD"
-HELLO_OUTPUT = "data/hello"
-os.makedirs(HELLO_OUTPUT, exist_ok=True)
+# -------- PATHS --------
+VIDEO_ROOT = "ASLLVD"
+DATA_ROOT = "data"
 
-hello_index = 0
 
-for file in os.listdir(HELLO_FOLDER):
+# -------- HELLO (videos in root) --------
+hello_output = os.path.join(DATA_ROOT, "hello")
+os.makedirs(hello_output, exist_ok=True)
+
+hello_index = get_next_index(hello_output, "hello")
+
+for file in os.listdir(VIDEO_ROOT):
+
     if file.startswith("hello") and file.endswith(".mov"):
-        video_path = os.path.join(HELLO_FOLDER, file)
 
-        print(f"Processing HELLO {file}...")
+        video_path = os.path.join(VIDEO_ROOT, file)
+
+        print("Processing HELLO:", file)
 
         seq = extract_sequence(video_path)
 
-        save_path = os.path.join(HELLO_OUTPUT, f"hello_{hello_index}.npy")
+        save_path = os.path.join(hello_output, f"hello_{hello_index}.npy")
+
         np.save(save_path, seq)
 
         print("Saved:", save_path)
@@ -98,50 +136,36 @@ for file in os.listdir(HELLO_FOLDER):
         hello_index += 1
 
 
-# -------- PROCESS THANKYOU --------
-THANK_FOLDER = "ASLLVD/thankyou"
-THANK_OUTPUT = "data/thankyou"
-os.makedirs(THANK_OUTPUT, exist_ok=True)
+# -------- OTHER ACTIONS --------
+actions = ["thankyou", "yes", "beautiful"]
 
-thank_index = 0
+for action in actions:
 
-for file in os.listdir(THANK_FOLDER):
-    if file.endswith(".mov"):
-        video_path = os.path.join(THANK_FOLDER, file)
+    video_folder = os.path.join(VIDEO_ROOT, action)
 
-        print(f"Processing THANKYOU {file}...")
+    output_folder = os.path.join(DATA_ROOT, action)
 
-        seq = extract_sequence(video_path)
+    os.makedirs(output_folder, exist_ok=True)
 
-        save_path = os.path.join(THANK_OUTPUT, f"thankyou_{thank_index}.npy")
-        np.save(save_path, seq)
+    index = get_next_index(output_folder, action)
 
-        print("Saved:", save_path)
+    for file in os.listdir(video_folder):
 
-        thank_index += 1
+        if file.endswith(".mov"):
 
+            video_path = os.path.join(video_folder, file)
 
-# -------- PROCESS YES --------
-YES_FOLDER = "ASLLVD/yes"
-YES_OUTPUT = "data/yes"
-os.makedirs(YES_OUTPUT, exist_ok=True)
+            print(f"Processing {action.upper()}:", file)
 
-yes_index = 0
+            seq = extract_sequence(video_path)
 
-for file in os.listdir(YES_FOLDER):
-    if file.endswith(".mov"):
-        video_path = os.path.join(YES_FOLDER, file)
+            save_path = os.path.join(output_folder, f"{action}_{index}.npy")
 
-        print(f"Processing YES {file}...")
+            np.save(save_path, seq)
 
-        seq = extract_sequence(video_path)
+            print("Saved:", save_path)
 
-        save_path = os.path.join(YES_OUTPUT, f"yes_{yes_index}.npy")
-        np.save(save_path, seq)
-
-        print("Saved:", save_path)
-
-        yes_index += 1
+            index += 1
 
 
 print("Dataset build complete.")
