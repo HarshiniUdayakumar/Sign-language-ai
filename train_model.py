@@ -11,10 +11,12 @@ DATA_PATH = "data"
 TARGET_FRAMES = 45
 FEATURES = 94
 
+# Updated labels (4 gestures)
 labels = {
     "hello": 0,
     "thankyou": 1,
-    "yes": 2
+    "yes": 2,
+    "beautiful": 3
 }
 
 # -------- LOAD DATA --------
@@ -25,11 +27,16 @@ for label_name, label_index in labels.items():
 
     folder_path = os.path.join(DATA_PATH, label_name)
 
+    if not os.path.exists(folder_path):
+        print(f"WARNING: Folder {folder_path} not found")
+        continue
+
     for file in os.listdir(folder_path):
 
         if file.endswith(".npy"):
 
-            sequence = np.load(os.path.join(folder_path, file))
+            file_path = os.path.join(folder_path, file)
+            sequence = np.load(file_path)
 
             if sequence.shape == (TARGET_FRAMES, FEATURES):
 
@@ -42,13 +49,13 @@ for label_name, label_index in labels.items():
 X = np.array(X)
 y_raw = np.array(y_raw)
 
+if len(X) == 0:
+    raise ValueError("No valid data found. Check dataset.")
+
 y = to_categorical(y_raw)
 
 print("X shape:", X.shape)
 print("y shape:", y.shape)
-
-if len(X) == 0:
-    raise ValueError("No valid data found. Check dataset.")
 
 # -------- TRAIN TEST SPLIT --------
 X_train, X_test, y_train, y_test = train_test_split(
@@ -67,11 +74,11 @@ model = Sequential()
 
 model.add(Input(shape=(TARGET_FRAMES, FEATURES)))
 
-# First LSTM
+# First LSTM layer
 model.add(LSTM(64, return_sequences=True))
 model.add(Dropout(0.4))
 
-# Second LSTM
+# Second LSTM layer
 model.add(LSTM(32))
 model.add(Dropout(0.4))
 
@@ -112,6 +119,6 @@ print("Final Test Accuracy:", accuracy)
 # -------- SAVE MODEL --------
 os.makedirs("models", exist_ok=True)
 
-model.save("models/sign_model_3gesture.keras")
+model.save("models/sign_model_4gesture.keras")
 
 print("Model saved successfully!")

@@ -5,12 +5,13 @@ from tensorflow.keras.models import load_model
 from collections import deque, Counter
 
 # -------- LOAD MODEL --------
-model = load_model("models/sign_model_3gesture.keras")
+model = load_model("models/sign_model_4gesture.keras")
 
 labels = {
     0: "HELLO",
     1: "THANKYOU",
-    2: "YES"
+    2: "YES",
+    3: "BEAUTIFUL"
 }
 
 TARGET_FRAMES = 45
