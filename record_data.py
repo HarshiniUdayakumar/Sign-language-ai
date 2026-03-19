@@ -13,7 +13,7 @@ ACTIONS = {
     ord('y'): "yes",
     ord('b'): "beautiful",
     ord('a'): "address",
-    ord('s'): "sorry"
+    ord('w'): "wrong"
 }
 
 # -------- MEDIAPIPE --------
@@ -89,7 +89,7 @@ print("Press 't' for THANKYOU")
 print("Press 'y' for YES")
 print("Press 'b' for BEAUTIFUL")
 print("Press 'a' for ADDRESS")
-print("Press 's' for SORRY")
+print("Press 'w' for WRONG")
 print("Press 'q' to quit")
 
 
@@ -104,7 +104,7 @@ while True:
     results = holistic.process(rgb)
 
     cv2.putText(frame,
-                "Press h / t / y / b / a / s to record",
+                "Press h / t / y / b / a / w to record",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
