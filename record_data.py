@@ -11,7 +11,9 @@ ACTIONS = {
     ord('h'): "hello",
     ord('t'): "thankyou",
     ord('y'): "yes",
-    ord('b'): "beautiful"
+    ord('b'): "beautiful",
+    ord('a'): "address",
+    ord('s'): "sorry"
 }
 
 # -------- MEDIAPIPE --------
@@ -19,7 +21,7 @@ mp_holistic = mp.solutions.holistic
 
 holistic = mp_holistic.Holistic(
     static_image_mode=False,
-    model_complexity=1,
+    model_complexity=1,   # keep same as old data
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
@@ -31,16 +33,13 @@ for action in ACTIONS.values():
 
 # -------- SAFE INDEX FUNCTION --------
 def get_next_index(action):
-
     folder = os.path.join(DATA_PATH, action)
-
     files = [f for f in os.listdir(folder) if f.endswith(".npy")]
 
     if len(files) == 0:
         return 0
 
     indices = []
-
     for f in files:
         try:
             index = int(f.split("_")[1].split(".")[0])
@@ -53,7 +52,6 @@ def get_next_index(action):
 
 # -------- EXTRACT LANDMARKS --------
 def extract_landmarks(results):
-
     frame_landmarks = []
 
     # LEFT HAND
@@ -90,24 +88,23 @@ print("Press 'h' for HELLO")
 print("Press 't' for THANKYOU")
 print("Press 'y' for YES")
 print("Press 'b' for BEAUTIFUL")
+print("Press 'a' for ADDRESS")
+print("Press 's' for SORRY")
 print("Press 'q' to quit")
 
 
 while True:
 
     ret, frame = cap.read()
-
     if not ret:
         break
 
     frame = cv2.resize(frame, (640, 480))
-
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
     results = holistic.process(rgb)
 
     cv2.putText(frame,
-                "Press h / t / y / b to record",
+                "Press h / t / y / b / a / s to record",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
@@ -121,12 +118,30 @@ while True:
     if key == ord('q'):
         break
 
-    # -------- RECORD ACTION --------
+    # -------- RECORD --------
     if key in ACTIONS:
 
         action = ACTIONS[key]
 
-        print(f"\nRecording {action}...")
+        # -------- COUNTDOWN --------
+        print(f"\nGet ready for {action}...")
+
+        for i in range(30):  # ~2 sec delay
+            ret, frame = cap.read()
+            frame = cv2.resize(frame, (640, 480))
+
+            cv2.putText(frame,
+                        f"Starting in {30 - i}",
+                        (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (0, 255, 255),
+                        2)
+
+            cv2.imshow("Recorder", frame)
+            cv2.waitKey(1)
+
+        print(f"Recording {action}...")
 
         sequence = []
         frame_count = 0
@@ -134,19 +149,16 @@ while True:
         while frame_count < TARGET_FRAMES:
 
             ret, frame = cap.read()
-
             frame = cv2.resize(frame, (640, 480))
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
             results = holistic.process(rgb)
 
             landmarks = extract_landmarks(results)
-
             sequence.append(landmarks)
 
             cv2.putText(frame,
-                        f"Recording {action} {frame_count+1}/{TARGET_FRAMES}",
+                        f"{action} {frame_count+1}/{TARGET_FRAMES}",
                         (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,
@@ -154,16 +166,14 @@ while True:
                         2)
 
             cv2.imshow("Recorder", frame)
-
             cv2.waitKey(1)
 
             frame_count += 1
 
         sequence = np.array(sequence)
 
-        # -------- SAFE SAVE --------
+        # -------- SAVE --------
         index = get_next_index(action)
-
         save_path = os.path.join(DATA_PATH, action, f"{action}_{index}.npy")
 
         np.save(save_path, sequence)
