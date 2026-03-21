@@ -11,12 +11,12 @@ DATA_PATH = "data"
 TARGET_FRAMES = 45
 FEATURES = 94
 
-# Updated labels (4 gestures)
 labels = {
     "hello": 0,
     "thankyou": 1,
     "yes": 2,
-    "beautiful": 3
+    "beautiful": 3,
+    "wrong": 4
 }
 
 # -------- LOAD DATA --------
@@ -28,61 +28,51 @@ for label_name, label_index in labels.items():
     folder_path = os.path.join(DATA_PATH, label_name)
 
     if not os.path.exists(folder_path):
-        print(f"WARNING: Folder {folder_path} not found")
+        print(f"Missing {folder_path}")
         continue
 
-    for file in os.listdir(folder_path):
+    files = [f for f in os.listdir(folder_path) if f.endswith(".npy")]
 
-        if file.endswith(".npy"):
+    print(f"{label_name}: {len(files)} samples")
 
-            file_path = os.path.join(folder_path, file)
-            sequence = np.load(file_path)
+    # ⚠ limit wrong to reduce dominance
+    if label_name == "wrong":
+        files = files[:40]
 
-            if sequence.shape == (TARGET_FRAMES, FEATURES):
+    for file in files:
 
-                X.append(sequence)
-                y_raw.append(label_index)
+        sequence = np.load(os.path.join(folder_path, file))
 
-            else:
-                print(f"Skipped {file} due to wrong shape {sequence.shape}")
+        if sequence.shape == (TARGET_FRAMES, FEATURES):
+            X.append(sequence)
+            y_raw.append(label_index)
 
 X = np.array(X)
 y_raw = np.array(y_raw)
 
-if len(X) == 0:
-    raise ValueError("No valid data found. Check dataset.")
-
 y = to_categorical(y_raw)
 
-print("X shape:", X.shape)
-print("y shape:", y.shape)
+print("X:", X.shape)
+print("y:", y.shape)
 
-# -------- TRAIN TEST SPLIT --------
+# -------- SPLIT --------
 X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
+    X, y,
     test_size=0.25,
     random_state=42,
     stratify=y_raw
 )
 
-print("Training samples:", X_train.shape[0])
-print("Testing samples:", X_test.shape[0])
-
-# -------- BUILD MODEL --------
+# -------- MODEL --------
 model = Sequential()
-
 model.add(Input(shape=(TARGET_FRAMES, FEATURES)))
 
-# First LSTM layer
 model.add(LSTM(64, return_sequences=True))
-model.add(Dropout(0.4))
+model.add(Dropout(0.3))
 
-# Second LSTM layer
 model.add(LSTM(32))
-model.add(Dropout(0.4))
+model.add(Dropout(0.3))
 
-# Dense layers
 model.add(Dense(32, activation='relu'))
 model.add(Dense(len(labels), activation='softmax'))
 
@@ -92,17 +82,10 @@ model.compile(
     metrics=['accuracy']
 )
 
-model.summary()
-
-# -------- EARLY STOPPING --------
-early_stop = EarlyStopping(
-    monitor='val_loss',
-    patience=7,
-    restore_best_weights=True
-)
-
 # -------- TRAIN --------
-history = model.fit(
+early_stop = EarlyStopping(monitor='val_loss', patience=7, restore_best_weights=True)
+
+model.fit(
     X_train,
     y_train,
     epochs=100,
@@ -111,14 +94,12 @@ history = model.fit(
     callbacks=[early_stop]
 )
 
+# -------- SAVE --------
+os.makedirs("models", exist_ok=True)
+model.save("models/sign_model_fixed.keras")
 # -------- EVALUATE --------
 loss, accuracy = model.evaluate(X_test, y_test)
 
-print("Final Test Accuracy:", accuracy)
+print("\n🎯 Final Test Accuracy:", accuracy)
 
-# -------- SAVE MODEL --------
-os.makedirs("models", exist_ok=True)
-
-model.save("models/sign_model_4gesture.keras")
-
-print("Model saved successfully!")
+print("Model trained successfully!")

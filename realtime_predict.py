@@ -5,29 +5,20 @@ from tensorflow.keras.models import load_model
 from collections import deque, Counter
 
 # -------- LOAD MODEL --------
-model = load_model("models/sign_model_4gesture.keras")
+model = load_model("models/sign_model_fixed.keras")
 
 labels = {
     0: "HELLO",
     1: "THANKYOU",
     2: "YES",
-    3: "BEAUTIFUL"
+    3: "BEAUTIFUL",
+    4: "WRONG"
 }
 
 TARGET_FRAMES = 45
-CONFIDENCE_THRESHOLD = 0.85
-SMOOTHING_WINDOW = 5
+CONFIDENCE_THRESHOLD = 0.90   # 🔥 high threshold
+SMOOTHING_WINDOW = 8
 
-
-# -------- NORMALIZATION --------
-def normalize_sequence(seq):
-    seq = np.array(seq)
-    mean = np.mean(seq)
-    std = np.std(seq) + 1e-8
-    return (seq - mean) / std
-
-
-# -------- MEDIAPIPE SETUP --------
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
@@ -44,7 +35,6 @@ sequence = []
 prediction_history = deque(maxlen=SMOOTHING_WINDOW)
 stable_prediction = ""
 
-
 while cap.isOpened():
 
     ret, frame = cap.read()
@@ -56,7 +46,7 @@ while cap.isOpened():
 
     results = holistic.process(rgb)
 
-    # -------- DRAW LANDMARKS --------
+    # draw hands
     if results.left_hand_landmarks:
         mp_drawing.draw_landmarks(frame, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
 
@@ -65,21 +55,21 @@ while cap.isOpened():
 
     frame_landmarks = []
 
-    # -------- LEFT HAND --------
+    # left hand
     if results.left_hand_landmarks:
         for lm in results.left_hand_landmarks.landmark:
             frame_landmarks.extend([lm.x, lm.y])
     else:
-        frame_landmarks.extend([0] * 42)
+        frame_landmarks.extend([0]*42)
 
-    # -------- RIGHT HAND --------
+    # right hand
     if results.right_hand_landmarks:
         for lm in results.right_hand_landmarks.landmark:
             frame_landmarks.extend([lm.x, lm.y])
     else:
-        frame_landmarks.extend([0] * 42)
+        frame_landmarks.extend([0]*42)
 
-    # -------- POSE --------
+    # pose
     pose_indices = [0, 11, 12, 13, 14]
 
     if results.pose_landmarks:
@@ -87,7 +77,7 @@ while cap.isOpened():
             lm = results.pose_landmarks.landmark[idx]
             frame_landmarks.extend([lm.x, lm.y])
     else:
-        frame_landmarks.extend([0] * 10)
+        frame_landmarks.extend([0]*10)
 
     sequence.append(frame_landmarks)
 
@@ -98,15 +88,11 @@ while cap.isOpened():
     if len(sequence) == TARGET_FRAMES:
 
         if not results.left_hand_landmarks and not results.right_hand_landmarks:
-
             stable_prediction = ""
             prediction_history.clear()
 
         else:
-
-            normalized_seq = normalize_sequence(sequence)
-
-            input_data = np.expand_dims(normalized_seq, axis=0)
+            input_data = np.expand_dims(sequence, axis=0)
 
             prediction = model.predict(input_data, verbose=0)
 
@@ -123,22 +109,13 @@ while cap.isOpened():
                     stable_prediction = labels[most_common]
 
             else:
-
                 stable_prediction = ""
                 prediction_history.clear()
 
-    # -------- DISPLAY --------
-    display_text = stable_prediction if stable_prediction != "" else "NO ACTION"
+    display_text = stable_prediction if stable_prediction else "NO ACTION"
 
-    cv2.putText(
-        frame,
-        display_text,
-        (20, 60),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.2,
-        (0, 255, 0),
-        3
-    )
+    cv2.putText(frame, display_text, (20, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,255,0), 3)
 
     cv2.imshow("Sign Recognition", frame)
 

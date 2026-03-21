@@ -17,7 +17,7 @@ TARGET_FRAMES = 45
 
 
 # -------- GET NEXT SAFE INDEX --------
-def get_next_index(folder, prefix):
+def get_next_index(folder):
 
     files = [f for f in os.listdir(folder) if f.endswith(".npy")]
 
@@ -40,18 +40,15 @@ def get_next_index(folder, prefix):
 def extract_sequence(video_path):
 
     cap = cv2.VideoCapture(video_path)
-
     sequence = []
 
     while True:
 
         ret, frame = cap.read()
-
         if not ret:
             break
 
-        frame = cv2.resize(frame, (640,480))
-
+        frame = cv2.resize(frame, (640, 480))
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         results = holistic.process(rgb)
@@ -72,8 +69,8 @@ def extract_sequence(video_path):
         else:
             frame_landmarks.extend([0]*42)
 
-        # POSE
-        pose_indices = [0,11,12,13,14]
+        # POSE (selected points)
+        pose_indices = [0, 11, 12, 13, 14]
 
         if results.pose_landmarks:
             for idx in pose_indices:
@@ -90,17 +87,12 @@ def extract_sequence(video_path):
 
     num_frames = sequence.shape[0]
 
-    # FIX FRAME SIZE
+    # -------- FIX FRAME SIZE --------
     if num_frames >= TARGET_FRAMES:
-
-        indices = np.linspace(0, num_frames-1, TARGET_FRAMES).astype(int)
-
+        indices = np.linspace(0, num_frames - 1, TARGET_FRAMES).astype(int)
         sequence = sequence[indices]
-
     else:
-
-        padding = np.zeros((TARGET_FRAMES-num_frames, sequence.shape[1]))
-
+        padding = np.zeros((TARGET_FRAMES - num_frames, sequence.shape[1]))
         sequence = np.vstack((sequence, padding))
 
     return sequence
@@ -110,62 +102,32 @@ def extract_sequence(video_path):
 VIDEO_ROOT = "ASLLVD"
 DATA_ROOT = "data"
 
+wrong_video_folder = os.path.join(VIDEO_ROOT, "wrong")
+wrong_output_folder = os.path.join(DATA_ROOT, "wrong")
 
-# -------- HELLO (videos in root) --------
-hello_output = os.path.join(DATA_ROOT, "hello")
-os.makedirs(hello_output, exist_ok=True)
+os.makedirs(wrong_output_folder, exist_ok=True)
 
-hello_index = get_next_index(hello_output, "hello")
 
-for file in os.listdir(VIDEO_ROOT):
+# -------- PROCESS WRONG --------
+wrong_index = get_next_index(wrong_output_folder)
 
-    if file.startswith("hello") and file.endswith(".mov"):
+for file in os.listdir(wrong_video_folder):
 
-        video_path = os.path.join(VIDEO_ROOT, file)
+    if file.endswith((".mp4", ".mov", ".avi")):
 
-        print("Processing HELLO:", file)
+        video_path = os.path.join(wrong_video_folder, file)
+
+        print("Processing WRONG:", file)
 
         seq = extract_sequence(video_path)
 
-        save_path = os.path.join(hello_output, f"hello_{hello_index}.npy")
+        save_path = os.path.join(wrong_output_folder, f"wrong_{wrong_index}.npy")
 
         np.save(save_path, seq)
 
         print("Saved:", save_path)
 
-        hello_index += 1
+        wrong_index += 1
 
 
-# -------- OTHER ACTIONS --------
-actions = ["thankyou", "yes", "beautiful"]
-
-for action in actions:
-
-    video_folder = os.path.join(VIDEO_ROOT, action)
-
-    output_folder = os.path.join(DATA_ROOT, action)
-
-    os.makedirs(output_folder, exist_ok=True)
-
-    index = get_next_index(output_folder, action)
-
-    for file in os.listdir(video_folder):
-
-        if file.endswith(".mov"):
-
-            video_path = os.path.join(video_folder, file)
-
-            print(f"Processing {action.upper()}:", file)
-
-            seq = extract_sequence(video_path)
-
-            save_path = os.path.join(output_folder, f"{action}_{index}.npy")
-
-            np.save(save_path, seq)
-
-            print("Saved:", save_path)
-
-            index += 1
-
-
-print("Dataset build complete.")
+print("✅ WRONG dataset build complete.")
